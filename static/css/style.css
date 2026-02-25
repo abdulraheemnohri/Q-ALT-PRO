@@ -1,0 +1,42 @@
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Custom scrollbar for dark mode */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #0f172a;
+}
+::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+}
+
+/* Quantum Pulse Animation */
+@keyframes quantum-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.4); }
+    70% { box-shadow: 0 0 0 15px rgba(34, 211, 238, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0); }
+}
+
+.quantum-glow {
+    box-shadow: 0 0 15px rgba(34, 211, 238, 0.3);
+}
+
+.quantum-text-glow {
+    text-shadow: 0 0 8px rgba(34, 211, 238, 0.5);
+}
+
+.pulse-on-run {
+    animation: quantum-pulse 2s infinite;
+}
+
+#engineConsole {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 transparent;
+}
