@@ -28,8 +28,8 @@
 
     <main class="container mx-auto p-4 grid grid-cols-1 lg:grid-cols-4 gap-6 mt-6">
         <!-- Control Panel -->
-        <div class="lg:col-span-1 bg-slate-800 p-6 rounded-xl border border-slate-700">
-            <h2 class="text-xl font-bold mb-6 flex items-center">
+        <div class="lg:col-span-1 bg-slate-800 p-6 rounded-xl border border-slate-700 quantum-glow">
+            <h2 class="text-xl font-bold mb-6 flex items-center quantum-text-glow">
                 <span class="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
                 Control Panel
             </h2>
@@ -60,6 +60,38 @@
                     <input type="number" id="targetIndex" value="0" class="w-full bg-slate-700 border border-slate-600 rounded p-2 text-white">
                 </div>
 
+                <!-- Dynamic Algorithm Parameters -->
+                <div id="algoParams" class="space-y-4 border-t border-slate-700 pt-4">
+                    <!-- Grover Params -->
+                    <div id="params_grover" class="algo-param-group">
+                        <label class="block text-sm text-slate-400 mb-1">Iterations (0 = Auto)</label>
+                        <input type="number" id="grover_iters" value="0" class="w-full bg-slate-700 border border-slate-600 rounded p-2 text-white text-sm">
+                    </div>
+                    <!-- Annealing Params -->
+                    <div id="params_annealing" class="algo-param-group hidden">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-sm text-slate-400 mb-1">Temp</label>
+                                <input type="number" id="anneal_temp" value="1.0" step="0.1" class="w-full bg-slate-700 border border-slate-600 rounded p-2 text-white text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-slate-400 mb-1">Cooling</label>
+                                <input type="number" id="anneal_cooling" value="0.95" step="0.01" class="w-full bg-slate-700 border border-slate-600 rounded p-2 text-white text-sm">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- QAOA Params -->
+                    <div id="params_qaoa" class="algo-param-group hidden">
+                        <label class="block text-sm text-slate-400 mb-1">Layers (p)</label>
+                        <input type="number" id="qaoa_p" value="1" min="1" max="10" class="w-full bg-slate-700 border border-slate-600 rounded p-2 text-white text-sm">
+                    </div>
+                    <!-- Genetic Params -->
+                    <div id="params_genetic" class="algo-param-group hidden">
+                        <label class="block text-sm text-slate-400 mb-1">Generations</label>
+                        <input type="number" id="genetic_gens" value="50" class="w-full bg-slate-700 border border-slate-600 rounded p-2 text-white text-sm">
+                    </div>
+                </div>
+
                 <div class="flex items-center">
                     <input type="checkbox" id="useAI" class="mr-2 w-4 h-4 accent-cyan-400">
                     <label for="useAI" class="text-sm text-slate-300">AI-Guided Collapse</label>
@@ -74,23 +106,24 @@
         <!-- Visualization Area -->
         <div class="lg:col-span-3 space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 h-80">
-                    <h3 class="text-lg font-bold mb-4">Probability Distribution</h3>
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 h-80 quantum-glow">
+                    <h3 class="text-lg font-bold mb-4 quantum-text-glow">Probability Distribution</h3>
                     <canvas id="probChart"></canvas>
                 </div>
-                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 h-80">
-                    <h3 class="text-lg font-bold mb-4">Energy Convergence</h3>
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 h-80 quantum-glow">
+                    <h3 class="text-lg font-bold mb-4 text-red-400">Energy Convergence</h3>
                     <canvas id="energyChart"></canvas>
                 </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
-                    <h3 class="text-lg font-bold mb-2">System Metrics</h3>
+                    <h3 class="text-lg font-bold mb-2">Engine Metrics</h3>
                     <div id="statusInfo" class="text-slate-400 text-sm space-y-2">
+                        <p>Result Index: <span id="resIndex" class="text-cyan-400 font-bold">-</span></p>
+                        <p>Bitstring: <span id="resBits" class="text-cyan-400 font-mono tracking-widest">-</span></p>
                         <p>CPU: <span id="cpuUsage" class="text-cyan-400">-%</span></p>
                         <p>Memory: <span id="memUsage" class="text-cyan-400">-%</span></p>
-                        <p>Status: <span class="text-green-400">Online</span></p>
                     </div>
                 </div>
                 <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
@@ -109,6 +142,33 @@
                     <h3 class="text-lg font-bold mb-2">Saved States</h3>
                     <div id="stateList" class="text-slate-400 text-sm space-y-1 max-h-40 overflow-y-auto">
                         <!-- States will appear here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cluster Management Section -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                <h3 class="text-lg font-bold mb-2">Live Engine Console</h3>
+                <div id="engineConsole" class="bg-black/50 p-3 rounded font-mono text-[10px] text-green-500 h-32 overflow-y-auto space-y-1">
+                    <p>> Engine initialized. Waiting for command...</p>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                <h3 class="text-lg font-bold mb-4 flex justify-between items-center">
+                    Cluster Node Management
+                    <span class="text-xs font-normal text-slate-500">Distributed Mode</span>
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-4">
+                        <div class="flex space-x-2">
+                            <input type="text" id="nodeUrl" placeholder="http://192.168.1.10:5001" class="flex-1 bg-slate-700 border border-slate-600 rounded p-2 text-white text-sm">
+                            <button onclick="addNode()" class="bg-cyan-500 hover:bg-cyan-600 px-4 py-2 rounded text-sm font-bold transition">ADD NODE</button>
+                        </div>
+                        <p class="text-[10px] text-slate-500 italic">Enter the full URL of the remote Termux node.</p>
+                    </div>
+                    <div id="clusterNodeList" class="space-y-2">
+                        <!-- Cluster nodes will appear here -->
                     </div>
                 </div>
             </div>
