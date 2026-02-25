@@ -4,11 +4,25 @@ import numpy as np
 
 class ClusterMaster:
     def __init__(self, nodes=None):
-        self.nodes = nodes or []
+        # nodes is a dict: {url: {"status": "unknown", "last_seen": timestamp}}
+        self.nodes = {url: {"status": "unknown"} for url in (nodes or [])}
 
     def add_node(self, node_url):
         if node_url not in self.nodes:
-            self.nodes.append(node_url)
+            self.nodes[node_url] = {"status": "unknown"}
+
+    def check_nodes(self):
+        """Heartbeat check for all nodes."""
+        for url in self.nodes:
+            try:
+                response = requests.get(f"{url}/health", timeout=2)
+                if response.status_code == 200:
+                    self.nodes[url]["status"] = "online"
+                else:
+                    self.nodes[url]["status"] = "offline"
+            except:
+                self.nodes[url]["status"] = "offline"
+        return self.nodes
 
     def distribute_task(self, num_qubits, algorithm, params):
         """
@@ -28,8 +42,13 @@ class ClusterMaster:
             except Exception as e:
                 return {'error': str(e)}
 
+        online_nodes = [url for url, info in self.nodes.items() if info["status"] == "online"]
+        if not online_nodes:
+            # If status unknown, try all
+            online_nodes = list(self.nodes.keys())
+
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            results = list(executor.map(send_to_node, self.nodes))
+            results = list(executor.map(send_to_node, online_nodes))
 
         return results
 
