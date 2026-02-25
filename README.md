@@ -9,6 +9,8 @@ Q-ALT PRO is a high-performance, modular, and scalable framework designed to run
 - **AI-Guided Collapse**: A neural network layer that predicts promising state directions to accelerate convergence.
 - **Distributed Cluster Mode**: Connect multiple devices to form a virtual quantum-inspired processor.
 - **Web Dashboard**: Interactive UI for real-time visualization of probability distributions and engine metrics.
+- **Command Console**: Terminal-style interface for executing commands and managing nodes.
+- **Problem Workspace**: JSON-based problem definition for complex optimization tasks.
 
 ## 🏗 Architecture
 ```text

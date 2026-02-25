@@ -9,6 +9,7 @@ class TinyNeuralNetwork:
         self.b1 = np.zeros((1, hidden_size))
         self.w2 = np.random.randn(hidden_size, output_size) * 0.01
         self.b2 = np.zeros((1, output_size))
+        self.learning_rate = 0.01
 
     def forward(self, x):
         # Ensure x is 2D
@@ -22,7 +23,10 @@ class TinyNeuralNetwork:
         self.a2 = 1 / (1 + np.exp(-self.z2))
         return self.a2
 
-    def train_step(self, x, y_target, learning_rate=0.01):
+    def train_step(self, x, y_target, learning_rate=None):
+        if learning_rate is None:
+            learning_rate = self.learning_rate
+
         # Forward
         y_pred = self.forward(x)
 

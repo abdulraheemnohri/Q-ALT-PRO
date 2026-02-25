@@ -56,9 +56,11 @@ def run_algorithm():
     num_qubits = data.get('num_qubits', 5)
     params = data.get('params', {})
     use_ai = data.get('use_ai', False)
+    settings = data.get('settings', {})
 
     start_time = time.time()
     state = QuantumState(num_qubits)
+    initial_amplitudes = state.amplitudes.copy()
 
     if alg_name == 'grover':
         target = params.get('target', 0)
@@ -72,6 +74,10 @@ def run_algorithm():
 
     elif alg_name == 'annealing':
         def target_cost(idx):
+            # Check if custom costs provided in params
+            custom_costs = params.get('costs')
+            if custom_costs and idx < len(custom_costs):
+                return custom_costs[idx]
             target = params.get('target', 0)
             return abs(idx - target)
         simulated_annealing(state, target_cost,
@@ -82,6 +88,16 @@ def run_algorithm():
     elif alg_name == 'qaoa':
         from algorithms.qaoa import qaoa_optimize
         def target_cost(idx):
+            # Use adjacency matrix if provided for Max-Cut
+            adj = params.get('matrix')
+            if adj:
+                bits = [(idx >> i) & 1 for i in range(num_qubits)]
+                cut = 0
+                for i in range(len(bits)):
+                    for j in range(i + 1, len(bits)):
+                        if i < len(adj) and j < len(adj[i]) and bits[i] != bits[j]:
+                            cut += adj[i][j]
+                return -cut
             target = params.get('target', 0)
             return abs(idx - target)
         qaoa_optimize(state, target_cost,
@@ -102,15 +118,31 @@ def run_algorithm():
         global ai_engine
         if ai_engine.num_qubits != num_qubits:
             ai_engine = AICore(num_qubits)
+        # Apply learning rate if provided
+        lr = settings.get('ai_learning_rate')
+        if lr:
+            ai_engine.model.learning_rate = lr
         ai_engine.guide_collapse(state)
+
+    # Apply pruning if settings provided
+    p_thresh = settings.get('prune_threshold')
+    top_k = settings.get('top_k')
+    if p_thresh or top_k:
+        state.prune(top_k=top_k, threshold=p_thresh or 1e-6)
 
     # Final measurement
     from core.collapse import measure
     result_idx = measure(state)
     duration = time.time() - start_time
 
-    # Calculate "energy" (dummy for now)
+    # Calculate "energy"
     energy = abs(result_idx - params.get('target', 0))
+
+    if use_ai:
+        # Reward: higher reward for lower energy
+        # Normalize reward between 0 and 1
+        reward = 1.0 / (1.0 + energy)
+        ai_engine.learn_from_result(initial_amplitudes, int(result_idx), reward)
 
     log_experiment(alg_name, num_qubits, int(result_idx), float(energy), duration)
 
@@ -125,6 +157,15 @@ def run_algorithm():
 def get_logs():
     limit = request.args.get('limit', 10, type=int)
     return jsonify(get_recent_logs(limit))
+
+@api_bp.route('/logs/clear', methods=['POST'])
+def clear_logs():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM logs')
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "logs cleared"})
 
 @api_bp.route('/status', methods=['GET'])
 def status():
@@ -145,6 +186,15 @@ def add_cluster_node():
         cluster_master.add_node(url)
         return jsonify({"status": "node added"})
     return jsonify({"error": "URL required"}), 400
+
+@api_bp.route('/cluster/nodes/remove', methods=['POST'])
+def remove_cluster_node():
+    data = request.json
+    url = data.get('url')
+    if url in cluster_master.nodes:
+        del cluster_master.nodes[url]
+        return jsonify({"status": "node removed"})
+    return jsonify({"error": "Node not found"}), 404
 
 @api_bp.route('/logs/export/<format>', methods=['GET'])
 def export_logs(format):

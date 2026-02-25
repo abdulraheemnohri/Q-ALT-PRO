@@ -64,6 +64,67 @@ document.addEventListener('DOMContentLoaded', () => {
         if (target) target.classList.remove('hidden');
     });
 
+    const cmdInput = document.getElementById('cmdInput');
+    cmdInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            handleCommand(cmdInput.value);
+            cmdInput.value = '';
+        }
+    });
+
+    function handleCommand(cmd) {
+        const parts = cmd.trim().split(' ');
+        const base = parts[0].toLowerCase();
+
+        switch(base) {
+            case '/help':
+                logToConsole('Commands: /run, /addnode [url], /clear, /save [name], /load [name], /prune [val]');
+                break;
+            case '/run':
+                runBtn.click();
+                break;
+            case '/clear':
+                document.getElementById('engineConsole').innerHTML = '<p>> Console cleared.</p>';
+                break;
+            case '/clearlogs':
+                window.clearLogs();
+                break;
+            case '/importnodes':
+                if (parts[1]) {
+                    const urls = parts[1].split(',');
+                    urls.forEach(url => {
+                        document.getElementById('nodeUrl').value = url.trim();
+                        window.addNode();
+                    });
+                    logToConsole(`Importing ${urls.length} nodes...`);
+                }
+                break;
+            case '/reset':
+                location.reload();
+                break;
+            case '/prune':
+                if (parts[1]) {
+                    document.getElementById('pruneThreshold').value = parts[1];
+                    logToConsole(`Pruning threshold set to ${parts[1]}`);
+                }
+                break;
+            case '/addnode':
+                if (parts[1]) {
+                    document.getElementById('nodeUrl').value = parts[1];
+                    window.addNode();
+                }
+                break;
+            case '/save':
+                window.saveState(parts[1]);
+                break;
+            case '/load':
+                if (parts[1]) window.loadState(parts[1]);
+                break;
+            default:
+                logToConsole(`Unknown command: ${base}`);
+        }
+    }
+
     function logToConsole(msg) {
         const console = document.getElementById('engineConsole');
         const p = document.createElement('p');
@@ -97,11 +158,25 @@ document.addEventListener('DOMContentLoaded', () => {
             params.generations = parseInt(document.getElementById('genetic_gens').value);
         }
 
+        // Get problem definition from workspace
+        let problemData = {};
+        try {
+            const workspaceText = document.getElementById('problemWorkspace').value;
+            if (workspaceText) problemData = JSON.parse(workspaceText);
+        } catch (e) {
+            logToConsole('Warning: Invalid JSON in Problem Workspace');
+        }
+
         const payload = {
             algorithm: algo,
             num_qubits: parseInt(qubitSlider.value),
-            params: params,
-            use_ai: document.getElementById('useAI').checked
+            params: { ...params, ...problemData },
+            use_ai: document.getElementById('useAI').checked,
+            settings: {
+                prune_threshold: parseFloat(document.getElementById('pruneThreshold').value),
+                top_k: parseInt(document.getElementById('topK').value),
+                ai_learning_rate: parseFloat(document.getElementById('aiLearningRate').value)
+            }
         };
 
         try {
@@ -172,10 +247,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const nodes = data.nodes || {};
             clusterNodeList.innerHTML = Object.entries(nodes).map(([url, info]) => `
                 <div class="flex justify-between items-center bg-slate-700/50 p-2 rounded border border-slate-600">
-                    <span class="text-xs truncate max-w-[150px]">${url}</span>
-                    <span class="text-[10px] px-2 py-0.5 rounded ${info.status === 'online' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}">
-                        ${info.status.toUpperCase()}
-                    </span>
+                    <span class="text-xs truncate max-w-[120px]">${url}</span>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-[10px] px-2 py-0.5 rounded ${info.status === 'online' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}">
+                            ${info.status.toUpperCase()}
+                        </span>
+                        <button onclick="removeNode('${url}')" class="text-red-500 hover:text-red-400 font-bold text-xs">×</button>
+                    </div>
                 </div>
             `).join('') || '<p class="text-xs text-slate-500 italic text-center">No nodes connected</p>';
 
@@ -218,8 +296,64 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    window.removeNode = async (url) => {
+        try {
+            await fetch('/api/cluster/nodes/remove', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url })
+            });
+            fetchStatus();
+        } catch (error) {
+            console.error('Error removing node:', error);
+        }
+    };
+
+    window.clearLogs = async () => {
+        if (!confirm('Clear all logs?')) return;
+        try {
+            await fetch('/api/logs/clear', { method: 'POST' });
+            fetchLogs();
+            logToConsole('Logs cleared.');
+        } catch (error) {
+            console.error('Error clearing logs:', error);
+        }
+    };
+
     window.exportLogs = async (format) => {
         window.location.href = `/api/logs/export/${format}`;
+    };
+
+    window.toggleHelp = () => {
+        const modal = document.getElementById('helpModal');
+        modal.classList.toggle('hidden');
+    };
+
+    window.saveState = async (name) => {
+        if (!name) name = prompt('Enter state name:');
+        if (!name) return;
+
+        // This is a bit tricky because we don't have the current amplitudes here easily.
+        // We'll take them from the chart data for now.
+        const amplitudes = probChart.data.datasets[0].data.map(p => Math.sqrt(p));
+
+        try {
+            const response = await fetch('/api/states/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: name,
+                    num_qubits: parseInt(qubitSlider.value),
+                    amplitudes: amplitudes
+                })
+            });
+            if (response.ok) {
+                logToConsole(`State ${name} saved.`);
+                fetchStates();
+            }
+        } catch (error) {
+            console.error('Error saving state:', error);
+        }
     };
 
     window.loadState = async (name) => {
